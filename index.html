@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Family" id="appTitle">
+<meta name="theme-color" content="#039be5" id="themeColor">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Family</title>
+<link rel="apple-touch-icon" id="touchIcon" href="">
+<link rel="icon" id="favIcon" href="">
+<link rel="manifest" id="manifest" href="">
+<style>
+  html,body{margin:0;height:100%;background:#f5f5f7;overflow:hidden}
+  @media (prefers-color-scheme: dark){html,body{background:#000}}
+  iframe{position:fixed;inset:0;width:100%;height:100%;border:0;
+    padding-top:env(safe-area-inset-top);box-sizing:border-box;background:inherit}
+  .msg{font:16px -apple-system,system-ui,sans-serif;padding:40px 24px;max-width:420px;margin:auto;color:#6e6e73;text-align:center}
+</style>
+</head>
+<body>
+<script>
+/* Landers Family Command Center — home-screen wrapper.
+   Loads the family app full-screen (no Google bar) and gives each person
+   their own home-screen icon and name, chosen in the app under "Make it yours". */
+(function(){
+  var APP = 'https://script.google.com/macros/s/AKfycbzTqJTkZlwfPH6uiaSX5zuB434uXBGW49Ap8eXPtDcqD0ZTehTEAC4hHqdp9yp_SHbZKA/exec';
+  var q = new URLSearchParams(location.search), key = q.get('u') || '';
+  if (!/^[0-9a-f]{40}$/.test(key)) {
+    document.body.innerHTML = '<div class="msg">This link is missing its personal key. Ask Kevin for your own link.</div>';
+    return;
+  }
+  var CK = 'fcc_icon_' + key.slice(0, 6);
+
+  function shade(hex, amt){
+    var v = parseInt(hex.slice(1),16), c = [v>>16, (v>>8)&255, v&255];
+    return '#' + c.map(function(x){ x = Math.round(x + (amt < 0 ? x*amt : (255-x)*amt)); return Math.max(0,Math.min(255,x)).toString(16).padStart(2,'0'); }).join('');
+  }
+  function iconData(ic, size){
+    var cv = document.createElement('canvas'); cv.width = cv.height = size;
+    var ctx = cv.getContext('2d'), bg = ic.bg || '#039be5';
+    var g = ctx.createLinearGradient(0,0,size,size); g.addColorStop(0,bg); g.addColorStop(1,shade(bg,-0.25));
+    ctx.fillStyle = g; ctx.fillRect(0,0,size,size);
+    ctx.font = Math.round(size*0.58) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic.emoji || '🏡', size/2, size*0.54);
+    return cv.toDataURL('image/png');
+  }
+  function apply(p){
+    var ic = p.icon || {}, name = ic.name || 'Family';
+    document.title = name;
+    document.getElementById('appTitle').content = name;
+    document.getElementById('themeColor').content = p.accent || '#039be5';
+    var big = iconData(ic, 180), small = iconData(ic, 64);
+    document.getElementById('touchIcon').href = big;
+    document.getElementById('favIcon').href = small;
+    var manifest = { name: name, short_name: name, start_url: location.href, scope: location.href.split('?')[0],
+      display: 'standalone', background_color: '#000000', theme_color: p.accent || '#039be5',
+      icons: [{ src: iconData(ic, 192), sizes: '192x192', type: 'image/png' }, { src: iconData(ic, 512), sizes: '512x512', type: 'image/png' }] };
+    document.getElementById('manifest').href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
+  }
+  try { var saved = JSON.parse(localStorage.getItem(CK) || 'null'); if (saved) apply(saved); } catch(e) {}
+  fetch(APP + '?format=prefs&k=' + key).then(function(r){ return r.json(); }).then(function(p){
+    if (!p || !p.icon) return;
+    apply(p); try { localStorage.setItem(CK, JSON.stringify(p)); } catch(e) {}
+  }).catch(function(){});
+
+  var f = document.createElement('iframe');
+  f.src = APP + '?k=' + key;
+  f.title = 'Family';
+  f.allow = 'clipboard-write';
+  document.body.appendChild(f);
+})();
+</script>
+</body>
+</html>
