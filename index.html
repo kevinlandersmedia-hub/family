@@ -40,9 +40,10 @@
     var v = parseInt(hex.slice(1),16), c = [v>>16, (v>>8)&255, v&255];
     return '#' + c.map(function(x){ x = Math.round(x + (amt < 0 ? x*amt : (255-x)*amt)); return Math.max(0,Math.min(255,x)).toString(16).padStart(2,'0'); }).join('');
   }
-  function iconData(ic, size){
+  function iconData(ic, size, img){
     var cv = document.createElement('canvas'); cv.width = cv.height = size;
     var ctx = cv.getContext('2d'), bg = ic.bg || '#039be5';
+    if (img) { ctx.drawImage(img, 0, 0, size, size); return cv.toDataURL('image/png'); }
     var g = ctx.createLinearGradient(0,0,size,size); g.addColorStop(0,bg); g.addColorStop(1,shade(bg,-0.25));
     ctx.fillStyle = g; ctx.fillRect(0,0,size,size);
     ctx.font = Math.round(size*0.58) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
@@ -50,16 +51,25 @@
     return cv.toDataURL('image/png');
   }
   function apply(p){
+    var ic = p.icon || {};
+    if (ic.kind === 'photo' && ic.photoData) {
+      var img = new Image();
+      img.onload = function(){ build(p, img); };
+      img.onerror = function(){ build(p, null); };
+      img.src = ic.photoData;
+    } else build(p, null);
+  }
+  function build(p, img){
     var ic = p.icon || {}, name = ic.name || 'Family';
     document.title = name;
     document.getElementById('appTitle').content = name;
     document.getElementById('themeColor').content = p.accent || '#039be5';
-    var big = iconData(ic, 180), small = iconData(ic, 64);
+    var big = iconData(ic, 180, img), small = iconData(ic, 64, img);
     document.getElementById('touchIcon').href = big;
     document.getElementById('favIcon').href = small;
     var manifest = { name: name, short_name: name, start_url: location.href, scope: location.href.split('?')[0],
       display: 'standalone', background_color: '#000000', theme_color: p.accent || '#039be5',
-      icons: [{ src: iconData(ic, 192), sizes: '192x192', type: 'image/png' }, { src: iconData(ic, 512), sizes: '512x512', type: 'image/png' }] };
+      icons: [{ src: iconData(ic, 192, img), sizes: '192x192', type: 'image/png' }, { src: iconData(ic, 512, img), sizes: '512x512', type: 'image/png' }] };
     document.getElementById('manifest').href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
   }
   try { var saved = JSON.parse(localStorage.getItem(CK) || 'null'); if (saved) apply(saved); } catch(e) {}
