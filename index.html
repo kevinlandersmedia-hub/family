@@ -20,6 +20,12 @@
   iframe{position:fixed;inset:0;width:100%;height:100%;border:0;
     padding-top:env(safe-area-inset-top);box-sizing:border-box;background:inherit}
   .msg{font:16px -apple-system,system-ui,sans-serif;padding:40px 24px;max-width:420px;margin:auto;color:#6e6e73;text-align:center}
+  .bell{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:10;display:flex;align-items:center;gap:10px;
+    padding:12px 12px 12px 16px;border-radius:16px;background:rgba(28,28,30,.92);color:#fff;font:15px -apple-system,system-ui,sans-serif;
+    box-shadow:0 6px 24px rgba(0,0,0,.25);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+  .bell b{flex:1;font-weight:600}
+  .bell button{border:0;border-radius:10px;padding:9px 14px;font:600 15px -apple-system,system-ui,sans-serif;background:#039be5;color:#fff}
+  .bell button.x{background:transparent;color:#aaa;padding:9px 6px;font-size:20px;line-height:1}
 </style>
 </head>
 <body>
@@ -83,6 +89,47 @@
   f.title = 'Family';
   f.allow = 'clipboard-write';
   document.body.appendChild(f);
+
+  /* Lock-screen notifications: ask once, then keep this phone's push address current. */
+  function b64(s){ s = s.replace(/-/g,'+').replace(/_/g,'/'); while (s.length % 4) s += '='; var r = atob(s), a = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) a[i] = r.charCodeAt(i); return a; }
+  function pushOn(){
+    return navigator.serviceWorker.register('sw.js?u=' + key).then(function(reg){
+      return navigator.serviceWorker.ready.then(function(){ return reg.pushManager.getSubscription(); }).then(function(sub){
+        if (sub) return sub;
+        return fetch(APP + '?format=push&a=key&k=' + key).then(function(r){ return r.json(); }).then(function(j){
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(j.key) });
+        });
+      });
+    }).then(function(sub){
+      var ua = /android/i.test(navigator.userAgent) ? 'Android' : /iphone|ipad/i.test(navigator.userAgent) ? 'iPhone' : 'Computer';
+      return fetch(APP + '?format=push&a=sub&k=' + key + '&ua=' + ua + '&sub=' + encodeURIComponent(JSON.stringify({ endpoint: sub.endpoint })))
+        .then(function(r){ return r.json(); });
+    });
+  }
+  var canPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  var DK = 'fcc_bell_' + key.slice(0, 6);
+  if (canPush && Notification.permission === 'granted') {
+    pushOn().catch(function(){});
+  } else if (canPush && Notification.permission === 'default') {
+    var later = 0; try { later = Number(localStorage.getItem(DK) || 0); } catch(e) {}
+    if (Date.now() > later) {
+      var bar = document.createElement('div'); bar.className = 'bell';
+      bar.innerHTML = '<span style="font-size:22px">🔔</span><b>Turn on lock-screen reminders</b><button>Turn on</button><button class="x" aria-label="Not now">×</button>';
+      document.body.appendChild(bar);
+      bar.querySelector('.x').onclick = function(){ bar.remove(); try { localStorage.setItem(DK, Date.now() + 3 * 864e5); } catch(e) {} };
+      bar.querySelector('button').onclick = function(){
+        Notification.requestPermission().then(function(p){
+          if (p !== 'granted') { bar.remove(); return; }
+          bar.querySelector('b').textContent = 'Turning on…';
+          pushOn().then(function(){
+            bar.querySelector('b').textContent = 'Reminders are on ✓';
+            bar.querySelectorAll('button').forEach(function(b){ b.remove(); });
+            setTimeout(function(){ bar.remove(); }, 2500);
+          }).catch(function(err){ bar.querySelector('b').textContent = 'Couldn’t turn on: ' + (err && err.message || 'error'); setTimeout(function(){ bar.remove(); }, 6000); });
+        });
+      };
+    }
+  }
 })();
 </script>
 </body>
